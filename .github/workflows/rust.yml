@@ -15,13 +15,13 @@ jobs:
     runs-on: "ubuntu-latest"
 
     steps:
-    - uses: "actions/checkout@v2"
+    - uses: "actions/checkout@v4"
 
     # Download the reference data from GitHub's cache, instead of from the EBU
     # servers, to avoid unexpected egress for their servers; the GitHub cache is
     # made for it, it should be able to handle a 90 MB file.
     - name: "Obtain cached reference data for tests"
-      uses: "actions/cache@v2.0.0"
+      uses: "actions/cache@v4"
       with:
         path: "ebu-loudness-test-setv05.zip"
         key: "ebu-loudness-test-setv05"

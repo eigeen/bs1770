@@ -5,7 +5,8 @@ set -e
 # Download the EBU Test Sequences (© EBU) that are referenced in EBU Tech 3341.
 # Tests verify the implementation against the known loudness values of these
 # files. See also https://tech.ebu.ch/publications/ebu_loudness_test_set.
-wget --no-clobber https://tech.ebu.ch/files/live/sites/tech/files/shared/testmaterial/ebu-loudness-test-setv05.zip
+# Edit by Eigeen: 403 forbidden, use other url
+wget --no-clobber https://files.catbox.moe/yg8dhb.zip -O ebu-loudness-test-setv05.zip
 # The -o flag causes unzip to overwrite the file if it exists.
 unzip -o ebu-loudness-test-setv05.zip seq-3341-7_seq-3342-5-24bit.wav
 unzip -o ebu-loudness-test-setv05.zip seq-3341-2011-8_seq-3342-6-24bit-v02.wav
