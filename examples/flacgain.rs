@@ -5,17 +5,14 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-extern crate bs1770;
-extern crate claxon;
-
-use std::str::FromStr;
 use std::fs;
-use std::io::{Read, Seek, Write};
 use std::io;
+use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
-use claxon::FlacReader;
 use bs1770::{Power, Windows100ms};
+use claxon::FlacReader;
 
 /// Loudness measurement for a track, and the flac reader that wraps the file.
 struct TrackResult {
@@ -40,24 +37,20 @@ impl AlbumResult {
             println!(
                 "{:>5.1} LKFS  {}",
                 track_gated_power.loudness_lkfs(),
-                path
-                    .file_name()
+                path.file_name()
                     .expect("We decoded this file, it should have a name.")
                     .to_string_lossy(),
             );
         }
-        if self.tracks.len() > 0 {
-            println!(
-                "{:>5.1} LKFS  ALBUM",
-                self.gated_power.loudness_lkfs(),
-            );
+        if !self.tracks.is_empty() {
+            println!("{:>5.1} LKFS  ALBUM", self.gated_power.loudness_lkfs(),);
         }
     }
 
     /// Write tags for the tracks that do not have the correct tags yet.
     fn write_tags(self) -> io::Result<()> {
-        if self.tracks.len() == 0 {
-            return Ok(())
+        if self.tracks.is_empty() {
+            return Ok(());
         }
 
         let new_album_loudness_lkfs = self.gated_power.loudness_lkfs();
@@ -105,7 +98,7 @@ impl AlbumResult {
     }
 }
 
-/// Parse a numeric value with “LUFS” suffix from a metadata tag.
+/// Parse a numeric value with "LUFS" suffix from a metadata tag.
 fn parse_lufs(value: &str) -> Option<f32> {
     let num = value.strip_suffix(" LUFS")?;
     f32::from_str(num).ok()
@@ -129,7 +122,7 @@ fn analyze_album(paths: Vec<PathBuf>, skip_when_tags_present: bool) -> claxon::R
             let has_track_tag = file.get_tag("bs17704_track_loudness").next().is_some();
             let has_album_tag = file.get_tag("bs17704_album_loudness").next().is_some();
             if has_track_tag && has_album_tag {
-                continue
+                continue;
             }
         }
 
@@ -149,8 +142,8 @@ fn analyze_album(paths: Vec<PathBuf>, skip_when_tags_present: bool) -> claxon::R
 
     let gated_power = bs1770::gated_mean(windows.as_ref()).unwrap_or(Power(0.0));
     let result = AlbumResult {
-        tracks: tracks,
-        gated_power: gated_power,
+        tracks,
+        gated_power,
     };
 
     Ok(result)
@@ -173,21 +166,23 @@ fn analyze_file(mut reader: FlacReader<fs::File>) -> claxon::Result<TrackResult>
 
     while let Some(block) = blocks.read_next_or_eof(buffer)? {
         for (ch, meter) in meters.iter_mut().enumerate() {
-            meter.push(block.channel(ch as u32).iter().map(|s| *s as f32 * normalizer));
+            meter.push(
+                block
+                    .channel(ch as u32)
+                    .iter()
+                    .map(|s| *s as f32 * normalizer),
+            );
         }
         buffer = block.into_buffer();
     }
 
-    let zipped = bs1770::reduce_stereo(
-        meters[0].as_100ms_windows(),
-        meters[1].as_100ms_windows(),
-    );
+    let zipped = bs1770::reduce_stereo(meters[0].as_100ms_windows(), meters[1].as_100ms_windows());
     let gated_power = bs1770::gated_mean(zipped.as_ref()).unwrap_or(Power(0.0));
 
     let result = TrackResult {
-        gated_power: gated_power,
+        gated_power,
         windows: zipped,
-        reader: reader,
+        reader,
     };
 
     Ok(result)
@@ -208,7 +203,7 @@ fn locate_vorbis_comment_block(file: &mut fs::File) -> io::Result<Option<(u64, u
 
     while !is_last {
         // This is a block start boundary, remember the current offset.
-        let pos = reader.seek(io::SeekFrom::Current(0))?;
+        let pos = reader.stream_position()?;
 
         // The block header is four bytes, one byte where the first bit
         // specifies whether this is the last block, and the next 7 bits specify
@@ -217,11 +212,7 @@ fn locate_vorbis_comment_block(file: &mut fs::File) -> io::Result<Option<(u64, u
         is_last = (buf[0] >> 7) == 1;
         let block_type = buf[0] & 0b0111_1111;
         let is_vorbis_comment = block_type == 4;
-        let block_length = 0
-            | ((buf[1] as u64) << 16)
-            | ((buf[2] as u64) << 8)
-            | ((buf[3] as u64) << 0)
-            ;
+        let block_length = ((buf[1] as u64) << 16) | ((buf[2] as u64) << 8) | (buf[3] as u64);
 
         if is_vorbis_comment {
             // The stored length does not include the length of the 4-byte
@@ -268,7 +259,9 @@ fn write_new_tags(
 
     // Copy all non-excluded tags.
     for (key, value) in reader.tags() {
-        if exclude_tags.iter().any(|t| t == &key) { continue }
+        if exclude_tags.iter().any(|t| t == &key) {
+            continue;
+        }
 
         // TODO: If I expose the raw string including = from Claxon, I could use
         // it here without having to make a copy.
@@ -280,17 +273,21 @@ fn write_new_tags(
     }
 
     // Then add our own.
-    vorbis_comments.push(
-        format!("BS17704_ALBUM_LOUDNESS={:.3} LUFS", album_loudness_lkfs)
-    );
-    vorbis_comments.push(
-        format!("BS17704_TRACK_LOUDNESS={:.3} LUFS", track_loudness_lkfs)
-    );
+    vorbis_comments.push(format!(
+        "BS17704_ALBUM_LOUDNESS={:.3} LUFS",
+        album_loudness_lkfs
+    ));
+    vorbis_comments.push(format!(
+        "BS17704_TRACK_LOUDNESS={:.3} LUFS",
+        track_loudness_lkfs
+    ));
 
     let mut block = Vec::new();
 
     // The block starts with the length-prefixed vendor string as UTF-8.
-    let vendor = reader.vendor().expect("Expected VORBIS_COMMENT block to be present.");
+    let vendor = reader
+        .vendor()
+        .expect("Expected VORBIS_COMMENT block to be present.");
     block.write_all(&(vendor.len() as u32).to_le_bytes())?;
     block.write_all(vendor.as_bytes())?;
 
@@ -323,15 +320,15 @@ fn write_new_tags(
     // Copy the part up to the VORBIS_COMMENT block. The offset starts at 0, the
     // length is 1 more than the offset, we also want the first byte of the
     // block header.
-    copy_file_range(&src_file, &mut dst_file, 0, offset + 1)?;
+    copy_file_range(&mut src_file, &mut dst_file, 0, offset + 1)?;
 
     // We already have the first byte of the block header, the remaining 3 bytes
     // of that header are the block size, in big endian. Prepend that to the
     // block, then write the block.
     let block_length_u24be = [
         ((block.len() >> 16) & 0xff) as u8,
-        ((block.len() >>  8) & 0xff) as u8,
-        ((block.len() >>  0) & 0xff) as u8,
+        ((block.len() >> 8) & 0xff) as u8,
+        (block.len() & 0xff) as u8,
     ];
     block.splice(0..0, block_length_u24be.iter().cloned());
     dst_file.write_all(&block)?;
@@ -339,57 +336,92 @@ fn write_new_tags(
     // After the new VORBIS_COMMENT block, copy the remainder of the old file.
     let src_len = src_file.metadata()?.len();
     let tail_offset = offset + old_block_len;
-    copy_file_range(&src_file, &mut dst_file, tail_offset, src_len - tail_offset)?;
+    copy_file_range(
+        &mut src_file,
+        &mut dst_file,
+        tail_offset,
+        src_len - tail_offset,
+    )?;
 
     // Now that we produced the new file with a temporary name, move it over the
     // old file.
-    fs::rename(&tmp_fname, &path)
+    fs::rename(&tmp_fname, path)
 }
 
 fn copy_file_range(
-    file_in: &fs::File,
+    file_in: &mut fs::File,
     file_out: &mut fs::File,
     off_in: u64,
     len: u64,
 ) -> io::Result<()> {
-    use std::ptr;
-    use std::os::unix::io::AsRawFd;
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::io::AsRawFd;
+        use std::ptr;
 
-    let mut num_left = len as usize;
-    let mut off = off_in as i64;
+        let mut num_left = len as usize;
+        let mut off = off_in as i64;
 
-    while num_left > 0 {
-        let num_copied = unsafe {
-            // We do specify the offset to copy from, but we set the offset to
-            // copy to to null, which means write at the current write position
-            // (and update it).
-            let off_in = &mut off as *mut libc::off64_t;
-            let off_out = ptr::null_mut();
-            let flags = 0;
+        while num_left > 0 {
+            let num_copied = unsafe {
+                let off_in = &mut off as *mut libc::off64_t;
+                let off_out = ptr::null_mut();
+                let flags = 0;
 
-            libc::copy_file_range(
-                file_in.as_raw_fd(), off_in,
-                file_out.as_raw_fd(), off_out,
-                num_left,
-                flags,
-            )
-        };
+                libc::copy_file_range(
+                    file_in.as_raw_fd(),
+                    off_in,
+                    file_out.as_raw_fd(),
+                    off_out,
+                    num_left,
+                    flags,
+                )
+            };
 
-        if num_copied < 0 {
-            let err = io::Error::last_os_error();
-            return Err(err);
+            if num_copied < 0 {
+                let err = io::Error::last_os_error();
+                return Err(err);
+            }
+
+            if num_copied == 0 {
+                let err = io::Error::new(io::ErrorKind::Other, "Failed to copy full range");
+                return Err(err);
+            }
+
+            num_left -= num_copied as usize;
         }
 
-        if num_copied == 0 {
-            let err = io::Error::new(io::ErrorKind::Other, "Failed to copy full range");
-            return Err(err);
-        }
-
-        // This does not overflow, because `num_copied > 0`.
-        num_left -= num_copied as usize;
+        Ok(())
     }
 
-    Ok(())
+    #[cfg(not(target_os = "linux"))]
+    {
+        use std::io::{Seek, SeekFrom};
+
+        // 使用标准库的方法在非 Linux 系统上实现
+        let mut buffer = vec![0; 8192]; // 8KB 缓冲区
+        let mut num_left = len;
+
+        // 设置输入文件的读取位置
+        file_in.seek(SeekFrom::Start(off_in))?;
+
+        while num_left > 0 {
+            let to_read = std::cmp::min(buffer.len() as u64, num_left) as usize;
+            let num_read = file_in.read(&mut buffer[..to_read])?;
+
+            if num_read == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "Failed to read full range",
+                ));
+            }
+
+            file_out.write_all(&buffer[..num_read])?;
+            num_left -= num_read as u64;
+        }
+
+        Ok(())
+    }
 }
 
 fn main() {

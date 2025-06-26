@@ -5,17 +5,14 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! This example renders a “waveform” that represents the audio file. It does
+//! This example renders a "waveform" that represents the audio file. It does
 //! not show the actual audio wave, but it does give a visual clue of
 //! interesting points in the track.
-
-extern crate bs1770;
-extern crate claxon;
 
 use claxon::FlacReader;
 
 fn main() -> claxon::Result<()> {
-    let fname = std::env::args().skip(1).next().expect("Need input filename.");
+    let fname = std::env::args().nth(1).expect("Need input filename.");
     let mut reader = FlacReader::open(fname)?;
 
     let streaminfo = reader.streaminfo();
@@ -33,7 +30,12 @@ fn main() -> claxon::Result<()> {
 
     while let Some(block) = blocks.read_next_or_eof(buffer)? {
         for (ch, meter) in meters.iter_mut().enumerate() {
-            meter.push(block.channel(ch as u32).iter().map(|s| *s as f32 * normalizer));
+            meter.push(
+                block
+                    .channel(ch as u32)
+                    .iter()
+                    .map(|s| *s as f32 * normalizer),
+            );
         }
         buffer = block.into_buffer();
     }
@@ -55,7 +57,7 @@ fn main() -> claxon::Result<()> {
         // to have any detail.
         for window_2s in meter.inner.windows(5) {
             let power = 0.2 * window_2s.iter().map(|po| po.0).sum::<f32>();
-            if power > max { 
+            if power > max {
                 max = power;
             }
             amplitudes[ch].push(power);
@@ -72,13 +74,11 @@ fn main() -> claxon::Result<()> {
 
     for (i, amplitude) in amplitudes[0].iter().enumerate() {
         let y = 5.0 - 5.0 * (amplitude / max + 1e-10).sqrt();
-        assert_eq!(y, y);
         print!("L {:.1} {:.1} ", i as f32 * 0.1, y);
     }
 
     for (i, amplitude) in amplitudes[1].iter().enumerate().rev() {
         let y = 5.0 + 5.0 * (amplitude / max + 1e-10).sqrt();
-        assert_eq!(y, y);
         print!("L {:.1} {:.1} ", i as f32 * 0.1, y);
     }
 

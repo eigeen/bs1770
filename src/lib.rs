@@ -43,6 +43,7 @@
 //! ).unwrap_or(bs1770::Power(0.0));
 //! println!("Integrated loudness: {:.1} LUFS", gated_power.loudness_lkfs());
 //! ```
+#![allow(clippy::excessive_precision)]
 
 use std::f32;
 
@@ -81,13 +82,15 @@ impl Filter {
         let a0 = 1.0 + k / q + k * k;
         Filter {
             b0: (vh + vb * k / q + k * k) / a0,
-            b1: 2.0 * (k * k -  vh) / a0,
+            b1: 2.0 * (k * k - vh) / a0,
             b2: (vh - vb * k / q + k * k) / a0,
             a1: 2.0 * (k * k - 1.0) / a0,
             a2: (1.0 - k / q + k * k) / a0,
 
-            x1: 0.0, x2: 0.0,
-            y1: 0.0, y2: 0.0,
+            x1: 0.0,
+            x2: 0.0,
+            y1: 0.0,
+            y2: 0.0,
         }
     }
 
@@ -102,24 +105,23 @@ impl Filter {
         // 6baa64d59b7794bc812e124438692e7fd2e65c0c/pyloudnorm/iirfilter.py#L145-L151
         let k = (f32::consts::PI * center_hz / sample_rate_hz).tan();
         Filter {
-            a1:  2.0 * (k * k - 1.0) / (1.0 + k / q + k * k),
+            a1: 2.0 * (k * k - 1.0) / (1.0 + k / q + k * k),
             a2: (1.0 - k / q + k * k) / (1.0 + k / q + k * k),
-            b0:  1.0,
+            b0: 1.0,
             b1: -2.0,
-            b2:  1.0,
+            b2: 1.0,
 
-            x1: 0.0, x2: 0.0,
-            y1: 0.0, y2: 0.0,
+            x1: 0.0,
+            x2: 0.0,
+            y1: 0.0,
+            y2: 0.0,
         }
     }
 
     /// Feed the next input sample, get the next output sample.
     #[inline(always)]
     pub fn apply(&mut self, x0: f32) -> f32 {
-        let y0 = 0.0
-            + self.b0 * x0
-            + self.b1 * self.x1
-            + self.b2 * self.x2
+        let y0 = 0.0 + self.b0 * x0 + self.b1 * self.x1 + self.b2 * self.x2
             - self.a1 * self.y1
             - self.a2 * self.y2;
 
@@ -143,7 +145,10 @@ struct Sum {
 impl Sum {
     #[inline(always)]
     fn zero() -> Sum {
-        Sum { sum: 0.0, residue: 0.0 }
+        Sum {
+            sum: 0.0,
+            residue: 0.0,
+        }
     }
 
     #[inline(always)]
@@ -161,9 +166,9 @@ impl Sum {
 /// units are logarithmic. `loudness_lkfs` and `from_lkfs` convert between power,
 /// and K-weighted Loudness Units relative to nominal Full Scale (LKFS).
 ///
-/// The term “LKFS” (Loudness Units, K-Weighted, relative to nominal Full Scale)
+/// The term "LKFS" (Loudness Units, K-Weighted, relative to nominal Full Scale)
 /// is used in BS.1770-4 to emphasize K-weighting, but the term is otherwise
-/// interchangeable with the more widespread term “LUFS” (Loudness Units,
+/// interchangeable with the more widespread term "LUFS" (Loudness Units,
 /// relative to Full Scale). Loudness units are related to decibels in the
 /// following sense: boosting a signal that has a loudness of
 /// -<var>L<sub>K</sub></var> LUFS by <var>L<sub>K</sub></var> dB (by
@@ -175,7 +180,7 @@ impl Sum {
 /// be less loud than the same amount of power in higher frequencies. In this
 /// library the `Power` type is used exclusively to refer to power after applying K-weighting.
 ///
-/// The nominal “full scale” is the range [-1.0, 1.0]. Because the power is the
+/// The nominal "full scale" is the range [-1.0, 1.0]. Because the power is the
 /// mean square of the samples, if no input samples exceeded the full scale, the
 /// power will be in the range [0.0, 1.0]. However, the power delivered by
 /// multiple channels, which is a weighted sum over individual channel powers,
@@ -212,34 +217,48 @@ impl Power {
 /// windows for a momentary loudness measurement.
 #[derive(Copy, Clone, Debug)]
 pub struct Windows100ms<T> {
-    pub inner: T
+    pub inner: T,
 }
 
 impl<T> Windows100ms<T> {
     /// Wrap a new empty vector.
     pub fn new() -> Windows100ms<Vec<T>> {
-        Windows100ms {
-            inner: Vec::new(),
-        }
+        Windows100ms { inner: Vec::new() }
     }
 
     /// Apply `as_ref` to the inner value.
-    pub fn as_ref(&self) -> Windows100ms<&[Power]> where T: AsRef<[Power]> {
+    pub fn as_ref(&self) -> Windows100ms<&[Power]>
+    where
+        T: AsRef<[Power]>,
+    {
         Windows100ms {
-            inner: self.inner.as_ref()
+            inner: self.inner.as_ref(),
         }
     }
 
     /// Apply `as_mut` to the inner value.
-    pub fn as_mut(&mut self) -> Windows100ms<&mut [Power]> where T: AsMut<[Power]> {
+    pub fn as_mut(&mut self) -> Windows100ms<&mut [Power]>
+    where
+        T: AsMut<[Power]>,
+    {
         Windows100ms {
-            inner: self.inner.as_mut()
+            inner: self.inner.as_mut(),
         }
     }
 
     /// Apply `len` to the inner value.
-    pub fn len(&self) -> usize where T: AsRef<[Power]> {
+    pub fn len(&self) -> usize
+    where
+        T: AsRef<[Power]>,
+    {
         self.inner.as_ref().len()
+    }
+
+    pub fn is_empty(&self) -> bool
+    where
+        T: AsRef<[Power]>,
+    {
+        self.inner.as_ref().is_empty()
     }
 }
 
@@ -408,22 +427,25 @@ pub fn reduce_stereo(
     left: Windows100ms<&[Power]>,
     right: Windows100ms<&[Power]>,
 ) -> Windows100ms<Vec<Power>> {
-    assert_eq!(left.len(), right.len(), "Channels must have the same length.");
+    assert_eq!(
+        left.len(),
+        right.len(),
+        "Channels must have the same length."
+    );
     let mut result = Vec::with_capacity(left.len());
     for (l, r) in left.inner.iter().zip(right.inner) {
         result.push(Power(l.0 + r.0));
     }
-    Windows100ms {
-        inner: result
-    }
+    Windows100ms { inner: result }
 }
 
 /// In-place version of `reduce_stereo` that stores the result in the former left channel.
-pub fn reduce_stereo_in_place(
-    left: Windows100ms<&mut [Power]>,
-    right: Windows100ms<&[Power]>,
-) {
-    assert_eq!(left.len(), right.len(), "Channels must have the same length.");
+pub fn reduce_stereo_in_place(left: Windows100ms<&mut [Power]>, right: Windows100ms<&[Power]>) {
+    assert_eq!(
+        left.len(),
+        right.len(),
+        "Channels must have the same length."
+    );
     for (l, r) in left.inner.iter_mut().zip(right.inner) {
         l.0 += r.0;
     }
@@ -458,7 +480,7 @@ pub fn gated_mean(windows_100ms: Windows100ms<&[Power]>) -> Option<Power> {
         }
     }
 
-    if gating_blocks.len() == 0 {
+    if gating_blocks.is_empty() {
         return None;
     }
 
@@ -492,7 +514,7 @@ pub fn gated_mean(windows_100ms: Windows100ms<&[Power]>) -> Option<Power> {
 #[cfg(test)]
 mod tests {
     use super::{ChannelLoudnessMeter, Filter, Power, Windows100ms};
-    use super::{reduce_stereo, gated_mean};
+    use super::{gated_mean, reduce_stereo};
 
     #[test]
     fn filter_high_shelf_matches_spec() {
@@ -501,10 +523,10 @@ mod tests {
         let sample_rate_hz = 48_000.0;
         let f = Filter::high_shelf(sample_rate_hz);
         assert!((f.a1 - -1.69065929318241).abs() < 1e-6);
-        assert!((f.a2 -  0.73248077421585).abs() < 1e-6);
-        assert!((f.b0 -  1.53512485958697).abs() < 1e-6);
+        assert!((f.a2 - 0.73248077421585).abs() < 1e-6);
+        assert!((f.b0 - 1.53512485958697).abs() < 1e-6);
         assert!((f.b1 - -2.69169618940638).abs() < 1e-6);
-        assert!((f.b2 -  1.19839281085285).abs() < 1e-6);
+        assert!((f.b2 - 1.19839281085285).abs() < 1e-6);
     }
 
     #[test]
@@ -514,10 +536,10 @@ mod tests {
         let sample_rate_hz = 48_000.0;
         let f = Filter::high_pass(sample_rate_hz);
         assert!((f.a1 - -1.99004745483398).abs() < 1e-6);
-        assert!((f.a2 -  0.99007225036621).abs() < 1e-6);
-        assert!((f.b0 -  1.0).abs() < 1e-6);
+        assert!((f.a2 - 0.99007225036621).abs() < 1e-6);
+        assert!((f.b0 - 1.0).abs() < 1e-6);
         assert!((f.b1 - -2.0).abs() < 1e-6);
-        assert!((f.b2 -  1.0).abs() < 1e-6);
+        assert!((f.b2 - 1.0).abs() < 1e-6);
     }
 
     fn append_pure_tone(
@@ -594,11 +616,12 @@ mod tests {
 
                 let power = gated_mean(windows_stereo.as_ref()).unwrap();
                 assert_loudness_in_range_lkfs(
-                    power, amplitude_dbfs, 0.1,
+                    power,
+                    amplitude_dbfs,
+                    0.1,
                     &format!(
                         "sample_rate: {} Hz, amplitude: {:.1} dBFS",
-                        sample_rate_hz,
-                        amplitude_dbfs,
+                        sample_rate_hz, amplitude_dbfs,
                     ),
                 );
             }
@@ -611,11 +634,7 @@ mod tests {
         // outputs are the same, but the tones are different.
         let sample_rates = [44_100, 48_000, 96_000, 192_000];
         let tones_duration_milliseconds_amplitude_dbfs = [
-            &[
-                (10_000, -36.0),
-                (60_000, -23.0),
-                (10_000, -36.0),
-            ][..],
+            &[(10_000, -36.0), (60_000, -23.0), (10_000, -36.0)][..],
             &[
                 (10_000, -72.0),
                 (10_000, -36.0),
@@ -623,14 +642,13 @@ mod tests {
                 (10_000, -36.0),
                 (10_000, -72.0),
             ][..],
-            &[
-                (20_000, -26.0),
-                (20_100, -20.0),
-                (20_000, -26.0),
-            ][..],
+            &[(20_000, -26.0), (20_100, -20.0), (20_000, -26.0)][..],
         ];
         for &sample_rate_hz in &sample_rates {
-            for (i, &test_case) in tones_duration_milliseconds_amplitude_dbfs.iter().enumerate() {
+            for (i, &test_case) in tones_duration_milliseconds_amplitude_dbfs
+                .iter()
+                .enumerate()
+            {
                 let mut meter = ChannelLoudnessMeter::new(sample_rate_hz as u32);
                 let mut samples = Vec::new();
                 let frequency_hz = 1_000;
@@ -646,15 +664,14 @@ mod tests {
                 }
                 meter.push(samples.iter().cloned());
                 let windows_single = meter.as_100ms_windows();
-                let windows_stereo = reduce_stereo(windows_single.as_ref(), windows_single.as_ref());
+                let windows_stereo =
+                    reduce_stereo(windows_single.as_ref(), windows_single.as_ref());
                 let power = gated_mean(windows_stereo.as_ref()).unwrap();
                 assert_loudness_in_range_lkfs(
-                    power, -23.0, 0.1,
-                    &format!(
-                        "sample_rate: {} Hz, case {}",
-                        sample_rate_hz,
-                        i + 3
-                    ),
+                    power,
+                    -23.0,
+                    0.1,
+                    &format!("sample_rate: {} Hz, case {}", sample_rate_hz, i + 3),
                 );
             }
         }
@@ -721,8 +738,11 @@ mod tests {
     #[test]
     fn gated_mean_of_near_silence_is_none() {
         let below_abs_threshold = Power::from_lkfs(-71.0);
-        assert!(gated_mean(Windows100ms {
-            inner: &[below_abs_threshold; 10]
-        }).is_none());
+        assert!(
+            gated_mean(Windows100ms {
+                inner: &[below_abs_threshold; 10]
+            })
+            .is_none()
+        );
     }
 }
